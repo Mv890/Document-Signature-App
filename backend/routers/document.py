@@ -1,0 +1,37 @@
+import os
+import shutil
+from fastapi import APIRouter, Depends, UploadFile, File, HTTPException
+from sqlalchemy.orm import Session
+from database import get_db
+from models.document import Document
+from models.user import User
+from utils.auth import get_current_user
+
+router = APIRouter(prefix="/api/docs", tags=["Documents"])
+UPLOAD_DIR = "uploads"
+
+@router.post("/upload")
+def upload_document(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user) # <-- The JWT Security Lock
+):
+
+    if not file.filename.endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="Only PDF files are allowed")
+
+    file_path = os.path.join(UPLOAD_DIR, file.filename)
+    
+    with open(file_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+        
+    new_doc = Document(
+        filename=file.filename,
+        file_path=file_path,
+        owner_id=current_user.id
+    )
+    db.add(new_doc)
+    db.commit()
+    db.refresh(new_doc)
+    
+    return {"message": "File uploaded successfully", "document_id": new_doc.id}

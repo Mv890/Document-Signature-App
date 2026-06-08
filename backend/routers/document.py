@@ -35,3 +35,20 @@ def upload_document(
     db.refresh(new_doc)
     
     return {"message": "File uploaded successfully", "document_id": new_doc.id}
+
+@router.get("/")
+def get_user_documents(
+    db: Session = Depends(get_db), 
+    current_user: User = Depends(get_current_user)
+):
+    documents = db.query(Document).filter(Document.owner_id == current_user.id).all()
+    
+    return [
+        {
+            "id": doc.id,
+            "filename": doc.filename,
+            "url": f"http://localhost:8000/{doc.file_path}",
+            "upload_date": doc.upload_date
+        }
+        for doc in documents
+    ]

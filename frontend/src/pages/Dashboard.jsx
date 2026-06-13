@@ -1,37 +1,153 @@
-import { useState, useEffect } from "react";
+import { useState, useRef } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
+import { DndContext, useDraggable } from "@dnd-kit/core";
 
 pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
+
+function DraggableSignature({ id, x, y }) {
+  const { attributes, listeners, setNodeRef, transform } = useDraggable({ id });
+  
+  const style = {
+    position: "absolute",
+    top: `${y}px`,
+    left: `${x}px`,
+    transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
+    zIndex: 50,
+  };
+
+  return (
+    <div 
+      ref={setNodeRef} 
+      style={style} 
+      {...listeners} 
+      {...attributes} 
+      className="border-2 border-dashed border-indigo-500 bg-indigo-50 text-indigo-700 px-6 py-3 cursor-grab active:cursor-grabbing font-semibold rounded shadow-md"
+    >
+      ✍️ Sign Here
+    </div>
+  );
+}
 
 export default function Dashboard() {
   const [documents, setDocuments] = useState([]);
   const [selectedDoc, setSelectedDoc] = useState(null);
+  const [sigPosition, setSigPosition] = useState({ x: 100, y: 100 });
+  const [isSaving, setIsSaving] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  
+  const fileInputRef = useRef(null);
+
+  const token = "your_jwt_token_here"; 
+
+  const handleFileUpload = async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      const response = await fetch("http://localhost:8000/api/docs/upload", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${token}`
+        },
+        body: formData
+      });
+
+      if (response.ok) {
+        alert("File uploaded successfully!");
+      } else {
+        alert("Upload failed. Make sure your backend is running and token is valid.");
+      }
+    } catch (error) {
+      console.error("Error uploading:", error);
+      alert("Error connecting to backend.");
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  const handleDragEnd = (event) => {
+    const { delta } = event;
+    setSigPosition((prev) => ({
+      x: prev.x + delta.x,
+      y: prev.y + delta.y,
+    }));
+  };
+
+  const handleSaveSignature = async () => {
+    if (!selectedDoc) return;
+    setIsSaving(true);
+    
+    try {
+      const response = await fetch("http://localhost:8000/api/signatures/", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          doc_id: selectedDoc.id,
+          x_coordinate: sigPosition.x,
+          y_coordinate: sigPosition.y,
+          page_number: 1
+        })
+      });
+
+      if (response.ok) {
+        alert("Signature position saved successfully!");
+      } else {
+        alert("Failed to save signature. Check authentication.");
+      }
+    } catch (error) {
+      console.error("Error saving signature:", error);
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-slate-50 p-8 font-sans">
-      
-      {/* Main Container with shadow */}
       <div className="max-w-6xl mx-auto flex gap-6 h-[85vh] bg-white rounded-2xl shadow-xl overflow-hidden border border-slate-100">
         
-        {/* Sidebar: Document List */}
         <div className="w-1/3 bg-white border-r border-slate-100 flex flex-col">
-          <div className="p-6 border-b border-slate-100 bg-slate-50/50">
-            <h2 className="text-2xl font-extrabold text-slate-800 tracking-tight">
-              My Documents
-            </h2>
-            <p className="text-sm text-slate-500 mt-1">Select a file to preview and sign</p>
+          <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
+            <div>
+              <h2 className="text-2xl font-extrabold text-slate-800 tracking-tight">My Documents</h2>
+              <p className="text-sm text-slate-500 mt-1">Select a file to preview</p>
+            </div>
+            
+            <div>
+              <input 
+                type="file" 
+                accept="application/pdf"
+                ref={fileInputRef} 
+                onChange={handleFileUpload} 
+                className="hidden" 
+              />
+              <button 
+                onClick={() => fileInputRef.current.click()}
+                disabled={isUploading}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white p-2 rounded-full transition-colors shadow-sm disabled:bg-indigo-400"
+                title="Upload Document"
+              >
+                {isUploading ? "..." : (
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"></path>
+                  </svg>
+                )}
+              </button>
+            </div>
           </div>
           
           <div className="p-4 overflow-y-auto flex-1">
             {documents.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-full text-center px-4">
-                <div className="w-16 h-16 bg-indigo-50 rounded-full flex items-center justify-center mb-4">
-                  <svg className="w-8 h-8 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
-                  </svg>
-                </div>
-                <p className="text-slate-500 font-medium">No documents yet</p>
-                <p className="text-sm text-slate-400 mt-1">Upload a PDF to get started.</p>
+              <div className="text-center mt-10">
+                <p className="text-slate-500 font-medium">No documents yet.</p>
+                <p className="text-sm text-slate-400 mt-1">Click the + button to upload a PDF.</p>
               </div>
             ) : (
               <ul className="space-y-3">
@@ -39,18 +155,9 @@ export default function Dashboard() {
                   <li 
                     key={doc.id} 
                     onClick={() => setSelectedDoc(doc)}
-                    className={`p-4 rounded-xl cursor-pointer transition-all duration-200 border ${
-                      selectedDoc?.id === doc.id 
-                        ? "bg-indigo-50 border-indigo-200 shadow-sm" 
-                        : "bg-white border-slate-100 hover:border-indigo-100 hover:shadow-md"
-                    }`}
+                    className={`p-4 rounded-xl cursor-pointer transition-all border ${selectedDoc?.id === doc.id ? "bg-indigo-50 border-indigo-200" : "bg-white border-slate-100 hover:border-indigo-100"}`}
                   >
-                    <p className={`font-semibold truncate ${selectedDoc?.id === doc.id ? "text-indigo-900" : "text-slate-700"}`}>
-                      {doc.filename}
-                    </p>
-                    <p className={`text-xs mt-1 ${selectedDoc?.id === doc.id ? "text-indigo-500" : "text-slate-400"}`}>
-                      Added {new Date(doc.upload_date).toLocaleDateString()}
-                    </p>
+                    <p className="font-semibold text-slate-700">{doc.filename}</p>
                   </li>
                 ))}
               </ul>
@@ -58,25 +165,31 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Main Panel: PDF Preview */}
-        <div className="w-2/3 bg-slate-100 flex items-center justify-center p-8 relative inset-inner-shadow">
+        <div className="w-2/3 bg-slate-100 flex flex-col items-center justify-center relative p-8">
           {selectedDoc ? (
-            <div className="bg-white p-4 rounded-lg shadow-lg border border-slate-200">
-              <Document file={selectedDoc.url}>
-                <Page pageNumber={1} renderTextLayer={false} renderAnnotationLayer={false} width={550} />
-              </Document>
-            </div>
-          ) : (
-            <div className="text-center">
-              <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-white shadow-sm mb-4 border border-slate-100">
-                <svg className="w-10 h-10 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
-                </svg>
+            <>
+              <div className="w-full flex justify-between items-center mb-4 bg-white p-3 rounded-lg shadow-sm border border-slate-200">
+                <p className="text-sm font-medium text-slate-600">Drag the placeholder to the correct position.</p>
+                <button 
+                  onClick={handleSaveSignature}
+                  disabled={isSaving}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md font-medium transition-colors"
+                >
+                  {isSaving ? "Saving..." : "Save Signature Position"}
+                </button>
               </div>
-              <p className="text-lg font-medium text-slate-600">Document Viewer</p>
-              <p className="text-slate-400 text-sm mt-1">Select a document from the sidebar to view it here.</p>
-            </div>
+
+              <DndContext onDragEnd={handleDragEnd}>
+                <div className="relative bg-white p-4 rounded-lg shadow-lg border border-slate-200 inline-block overflow-hidden">
+                  <Document file={selectedDoc.url}>
+                    <Page pageNumber={1} renderTextLayer={false} renderAnnotationLayer={false} width={550} />
+                  </Document>
+                  <DraggableSignature id="sig-1" x={sigPosition.x} y={sigPosition.y} />
+                </div>
+              </DndContext>
+            </>
+          ) : (
+            <p className="text-slate-400">Select a document to preview</p>
           )}
         </div>
 

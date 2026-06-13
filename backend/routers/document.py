@@ -2,21 +2,26 @@ import os
 import shutil
 from fastapi import APIRouter, Depends, UploadFile, File, HTTPException
 from sqlalchemy.orm import Session
+from pydantic import BaseModel
+
 from database import get_db
 from models.document import Document
 from models.user import User
 from utils.auth import get_current_user
+from utils.email import generate_signing_link, send_signature_email
 
 router = APIRouter(prefix="/api/docs", tags=["Documents"])
 UPLOAD_DIR = "uploads"
+
+class ShareRequest(BaseModel):
+    email: str
 
 @router.post("/upload")
 def upload_document(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user) # <-- The JWT Security Lock
+    current_user: User = Depends(get_current_user)
 ):
-
     if not file.filename.endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF files are allowed")
 
@@ -52,3 +57,31 @@ def get_user_documents(
         }
         for doc in documents
     ]
+
+@router.post("/{doc_id}/share")
+def share_document(
+    doc_id: int, 
+    request: ShareRequest,
+    db: Session = Depends(get_db), 
+    current_user: User = Depends(get_current_user)
+):
+
+    document = db.query(Document).filter(Document.id == doc_id, Document.owner_id == current_user.id).first()
+    if not document:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    signing_link = generate_signing_link(doc_id=document.id, signer_email=request.email)
+
+    try:
+        send_signature_email(
+            signer_email=request.email, 
+            signing_link=signing_link, 
+            document_name=document.filename
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Failed to send email")
+
+    return {
+        "message": f"Secure signing link successfully sent to {request.email}",
+        "link": signing_link # Returning it here too just for easy testing!
+    }

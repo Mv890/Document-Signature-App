@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
+import { jwtDecode } from "jwt-decode";
 import { Document, Page, pdfjs } from "react-pdf";
 import { DndContext, useDraggable } from "@dnd-kit/core";
-
 
 pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
 
@@ -35,6 +35,67 @@ export default function Dashboard() {
   
   const [sigPosition, setSigPosition] = useState({ x: 100, y: 100 });
   const [isSaving, setIsSaving] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+
+  const [token, setToken] = useState(() => {
+    return localStorage.getItem("signature_app_token") || "";
+  });
+  const [userEmail, setUserEmail] = useState(""); 
+  
+  const fileInputRef = useRef(null);
+
+  useEffect(() => {
+    if (token) {
+      try {
+        const decodedData = jwtDecode(token);
+        setUserEmail(decodedData.sub);
+        // NEW: Save the token to the browser vault!
+        localStorage.setItem("signature_app_token", token);
+      } catch (error) {
+        console.error("Invalid token");
+        setUserEmail("");
+        localStorage.removeItem("signature_app_token"); // Clean up bad tokens
+      }
+    } else {
+      setUserEmail("");
+      localStorage.removeItem("signature_app_token");
+    }
+  }, [token]);
+  const handleFileUpload = async (event) => {
+    if (!token) {
+      alert("Please paste your Security Token at the top first!");
+      return;
+    }
+
+    const file = event.target.files[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      const response = await fetch("http://localhost:8000/api/docs/upload", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${token}`
+        },
+        body: formData
+      });
+
+      if (response.ok) {
+        alert("File uploaded successfully!");
+      } else {
+        alert("Upload failed. Make sure your backend is running and token is valid.");
+      }
+    } catch (error) {
+      console.error("Error uploading:", error);
+      alert("Error connecting to backend.");
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
 
   const handleDragEnd = (event) => {
     const { delta } = event;
@@ -45,10 +106,13 @@ export default function Dashboard() {
   };
 
   const handleSaveSignature = async () => {
+    if (!token) {
+      alert("Please paste your Security Token at the top first!");
+      return;
+    }
     if (!selectedDoc) return;
+    
     setIsSaving(true);
-   
-    const token = "your_jwt_token_here"; 
 
     try {
       const response = await fetch("http://localhost:8000/api/signatures/", {
@@ -79,12 +143,55 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-slate-50 p-8 font-sans">
+      
+      {/* Security Token Input Bar */}
+      <div className="max-w-6xl mx-auto mb-6 bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex gap-4 items-center">
+        <span className="font-semibold text-slate-700 text-sm uppercase tracking-wide">🔐 Security Token:</span>
+        <input
+          type="text"
+          placeholder="Paste your Swagger access_token here to unlock the dashboard..."
+          value={token}
+          onChange={(e) => setToken(e.target.value)}
+          className="flex-1 p-2 border border-slate-300 rounded focus:ring-2 focus:ring-indigo-500 outline-none font-mono text-sm"
+        />
+      </div>
+
+      {/* Welcome Message (Appears when token is pasted) */}
+      {userEmail && (
+        <div className="max-w-6xl mx-auto mb-6 text-indigo-700 font-medium">
+          👋 Welcome back, {userEmail}!
+        </div>
+      )}
+
       <div className="max-w-6xl mx-auto flex gap-6 h-[85vh] bg-white rounded-2xl shadow-xl overflow-hidden border border-slate-100">
         
         {/* Sidebar: Document List */}
         <div className="w-1/3 bg-white border-r border-slate-100 flex flex-col">
-          <div className="p-6 border-b border-slate-100 bg-slate-50/50">
+          <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
             <h2 className="text-2xl font-extrabold text-slate-800 tracking-tight">My Documents</h2>
+            
+            {/* Restored Upload Button */}
+            <div>
+              <input 
+                type="file" 
+                accept="application/pdf"
+                ref={fileInputRef} 
+                onChange={handleFileUpload} 
+                className="hidden" 
+              />
+              <button 
+                onClick={() => fileInputRef.current.click()}
+                disabled={isUploading}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white p-2 rounded-full transition-colors shadow-sm disabled:bg-indigo-400"
+                title="Upload Document"
+              >
+                {isUploading ? "..." : (
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"></path>
+                  </svg>
+                )}
+              </button>
+            </div>
           </div>
           
           <div className="p-4 overflow-y-auto flex-1">
@@ -127,7 +234,7 @@ export default function Dashboard() {
 
               {/* PDF Viewer wrapped in Drag & Drop Context */}
               <DndContext onDragEnd={handleDragEnd}>
-                <div className="relative bg-white p-4 rounded-lg shadow-lg border border-slate-200 inline-block">
+                <div className="relative bg-white p-4 rounded-lg shadow-lg border border-slate-200 inline-block overflow-hidden">
                   
                   {/* The actual PDF */}
                   <Document file={selectedDoc.url}>

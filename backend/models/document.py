@@ -1,16 +1,15 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, DateTime
-from sqlalchemy.sql import func
-from sqlalchemy.orm import relationship
+from sqlalchemy import Column, Integer, String, ForeignKey
 from database import Base
 
-class Document(Base):
-    __tablename__ = "documents"
+class Signature(Base):
+    __tablename__ = "signatures"
 
     id = Column(Integer, primary_key=True, index=True)
-    filename = Column(String, index=True, nullable=False)
-    file_path = Column(String, nullable=False)
-    upload_date = Column(DateTime(timezone=True), server_default=func.now())
-    
-    owner_id = Column(Integer, ForeignKey("users.id"))
-
-    owner = relationship("User")
+    doc_id = Column(Integer, ForeignKey("documents.id"))
+    user_id = Column(Integer, ForeignKey("users.id"))
+    x_coordinate = Column(Integer)
+    y_coordinate = Column(Integer)
+    page_number = Column(Integer)
+    # New fields for Day 11
+    status = Column(String, default="Pending") # Pending, Signed, Rejected
+    rejection_reason = Column(String, nullable=True)

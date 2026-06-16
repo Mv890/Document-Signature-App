@@ -1,6 +1,8 @@
 import os
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from pydantic import BaseModel
+from typing import Optional
 from database import get_db
 from models.user import User
 from models.document import Document
@@ -8,6 +10,11 @@ from models.signature import Signature
 from schemas.signature import SignatureCreate
 from utils.auth import get_current_user
 from utils.pdf import stamp_signature_on_pdf
+
+# Schema for updating status
+class StatusUpdate(BaseModel):
+    status: str
+    reason: Optional[str] = None
 
 router = APIRouter(prefix="/api/signatures", tags=["Signatures"])
 
@@ -29,6 +36,23 @@ def save_signature_position(
     db.commit()
     db.refresh(new_sig)
     return {"message": "Signature position saved", "signature_id": new_sig.id}
+
+# Day 11: Status Update Endpoint
+@router.put("/{signature_id}/status")
+def update_signature_status(
+    signature_id: int, 
+    update: StatusUpdate, 
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    sig = db.query(Signature).filter(Signature.id == signature_id).first()
+    if not sig:
+        raise HTTPException(status_code=404, detail="Signature not found")
+    
+    sig.status = update.status
+    sig.rejection_reason = update.reason
+    db.commit()
+    return {"message": f"Signature is now {sig.status}"}
 
 @router.post("/finalize/{doc_id}")
 def finalize_document(

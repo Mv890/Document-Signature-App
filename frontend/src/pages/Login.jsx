@@ -1,18 +1,17 @@
 import { useState } from "react";
 
 export default function Login({ onLoginSuccess }) {
-  // Toggle between Login and Register mode
   const [isRegistering, setIsRegistering] = useState(false);
-
-  // Form states
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   
-  // UI states
   const [error, setError] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+
+  // Dynamic API URL for both local and production
+  const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -21,9 +20,8 @@ export default function Login({ onLoginSuccess }) {
     setSuccessMsg("");
 
     if (isRegistering) {
-      // --- REGISTER FLOW ---
       try {
-        const response = await fetch("http://localhost:8000/api/auth/register", {
+        const response = await fetch(`${API_BASE_URL}/api/auth/register`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ name, email, password }),
@@ -34,10 +32,9 @@ export default function Login({ onLoginSuccess }) {
           throw new Error(errData.detail || "Registration failed");
         }
 
-        // Success! Switch back to login mode so they can sign in
         setSuccessMsg("Account created successfully! Please sign in.");
         setIsRegistering(false);
-        setPassword(""); // Clear password for security
+        setPassword(""); 
       } catch (err) {
         setError(err.message);
       } finally {
@@ -45,13 +42,12 @@ export default function Login({ onLoginSuccess }) {
       }
 
     } else {
-      // --- LOGIN FLOW ---
       const formData = new URLSearchParams();
       formData.append("username", email);
       formData.append("password", password);
 
       try {
-        const response = await fetch("http://localhost:8000/api/auth/login", {
+        const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
           method: "POST",
           headers: { "Content-Type": "application/x-www-form-urlencoded" },
           body: formData,
@@ -61,7 +57,7 @@ export default function Login({ onLoginSuccess }) {
 
         const data = await response.json();
         localStorage.setItem("signature_app_token", data.access_token);
-        onLoginSuccess(); // Teleport to dashboard!
+        onLoginSuccess(); 
       } catch (err) {
         setError(err.message);
       } finally {
@@ -93,7 +89,6 @@ export default function Login({ onLoginSuccess }) {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Only show the Name field if they are registering */}
           {isRegistering && (
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-1">Full Name</label>
@@ -141,7 +136,6 @@ export default function Login({ onLoginSuccess }) {
           </button>
         </form>
 
-        {/* Toggle Button at the bottom */}
         <div className="mt-6 text-center text-sm text-slate-600">
           {isRegistering ? "Already have an account? " : "Don't have an account? "}
           <button 
@@ -155,7 +149,6 @@ export default function Login({ onLoginSuccess }) {
             {isRegistering ? "Sign in here" : "Create one now"}
           </button>
         </div>
-
       </div>
     </div>
   );

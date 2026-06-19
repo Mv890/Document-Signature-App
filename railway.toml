@@ -1,12 +1,5 @@
-# 1. Force Railway to install Python and pip
-[env]
-NIXPACKS_PROVIDERS = "python"
-
-# 2. Tell it how to build
 [build]
-builder = "nixpacks"
-buildCommand = "cd backend && pip install -r requirements.txt"
+buildCommand = "pip install -r requirements.txt"
 
-# 3. Tell it how to start the server
 [deploy]
-startCommand = "cd backend && uvicorn main:app --host 0.0.0.0 --port $PORT"
+startCommand = "uvicorn main:app --host 0.0.0.0 --port $PORT"

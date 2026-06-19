@@ -1,15 +1,15 @@
-from sqlalchemy import Column, Integer, String, ForeignKey
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey
+from sqlalchemy.sql import func
 from database import Base
 
-class Signature(Base):
-    __tablename__ = "signatures"
+class Document(Base):
+    __tablename__ = "documents"
+    
+    # Safety net to prevent "Table already defined" crashes
+    __table_args__ = {'extend_existing': True}
 
     id = Column(Integer, primary_key=True, index=True)
-    doc_id = Column(Integer, ForeignKey("documents.id"))
-    user_id = Column(Integer, ForeignKey("users.id"))
-    x_coordinate = Column(Integer)
-    y_coordinate = Column(Integer)
-    page_number = Column(Integer)
-    # New fields for Day 11
-    status = Column(String, default="Pending") # Pending, Signed, Rejected
-    rejection_reason = Column(String, nullable=True)
+    filename = Column(String, index=True)
+    file_path = Column(String)
+    owner_id = Column(Integer, ForeignKey("users.id"))
+    upload_date = Column(DateTime(timezone=True), server_default=func.now())

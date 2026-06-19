@@ -1,18 +1,23 @@
-from sqlalchemy import Column, Integer, Float, String, ForeignKey
+from sqlalchemy import Column, Integer, String, ForeignKey
 from sqlalchemy.orm import relationship
 from database import Base
 
 class Signature(Base):
     __tablename__ = "signatures"
+    
+    # FIX: This prevents the "Table is already defined" crash
+    __table_args__ = {'extend_existing': True}
 
     id = Column(Integer, primary_key=True, index=True)
-    doc_id = Column(Integer, ForeignKey("documents.id"), nullable=False)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    doc_id = Column(Integer, ForeignKey("documents.id"))
+    user_id = Column(Integer, ForeignKey("users.id"))
+    x_coordinate = Column(Integer)
+    y_coordinate = Column(Integer)
+    page_number = Column(Integer)
     
-    x_coordinate = Column(Float, nullable=False)
-    y_coordinate = Column(Float, nullable=False)
-    page_number = Column(Integer, nullable=False, default=1)
-    status = Column(String, default="Pending") # Pending, Signed, Rejected
+    # Day 11 Status Fields
+    status = Column(String, default="Pending")
+    rejection_reason = Column(String, nullable=True)
 
-    document = relationship("Document")
+    # Relationships
     user = relationship("User")

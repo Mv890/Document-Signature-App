@@ -23,8 +23,8 @@ A secure, full-stack enterprise document management and digital signing solution
 ### Backend
 - **API**: FastAPI (Python)
 - **PDF Processing**: `pdf-lib`
-- **Database**: PostgreSQL / Supabase
-- **Deployment**: Vercel (Frontend), Railway/Fly.io (Backend)
+- **Database**: PostgreSQL 
+- **Deployment**: Vercel (Frontend), Railway (Backend)
 
 ---
 
